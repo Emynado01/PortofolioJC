@@ -291,10 +291,8 @@ export default function Home() {
                 </>
               ) : (
                 <>
-                  <p className="aboutLead">J’essaie davantage d’être moi-même que d’être développeur. Je vis 90 % du temps dans les étoiles et 10 % au Canada.</p>
-                  <p>Je code les images de ma plus grande imagination.</p>
-                  <p>Les technologies que je maîtrise ? Beaucoup, mais jamais assez.</p>
-                  <p>Tant que ce que je construis donne le sourire, ça me suffit.</p>
+                  <p className="aboutLead">Je suis Joachim, développeur web basé au Canada.</p>
+                  <p>Je développe principalement avec React, Next.js et TypeScript. J’aime transformer des idées inhabituelles en produits simples, cohérents et réellement utilisables.</p>
                 </>
               )}
             </div>
