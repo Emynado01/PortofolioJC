@@ -29,6 +29,7 @@ type Project = {
   category: string;
   description: string;
   tags?: string[];
+  url?: string;
   modalMessage: string;
 };
 
@@ -49,6 +50,7 @@ const PROJECTS: Project[] = [
     category: "Bibliothèque sonore privée",
     description: "Des histoires à emporter, sans bruit autour.",
     tags: ["Audio", "Cloud"],
+    url: "https://anansi01.vercel.app/",
     modalMessage: "Site trop moche pour être vu.",
   },
   {
@@ -171,6 +173,15 @@ export default function Home() {
 
   const closeModal = useCallback(() => setSelectedProject(null), []);
 
+  const openProject = (project: Project) => {
+    if (project.url) {
+      window.open(project.url, "_blank", "noopener,noreferrer");
+      return;
+    }
+
+    setSelectedProject(project);
+  };
+
   return (
     <main className={`portfolio ${isInstalling ? "portfolio--installing" : ""} ${isStyled ? "portfolio--ready" : ""}`}>
       {!isStyled && (
@@ -260,8 +271,8 @@ export default function Home() {
                 className={`projectCard ${project.id === "archives" ? "projectCard--archives" : ""}`}
                 key={project.id}
                 type="button"
-                onClick={() => setSelectedProject(project)}
-                aria-label={`Voir le message pour ${project.title}`}
+                onClick={() => openProject(project)}
+                aria-label={project.url ? `Ouvrir le site ${project.title}` : `Voir le message pour ${project.title}`}
               >
                 <span className="projectNumber">{project.number}</span>
                 <span className="projectArrow">↗</span>
