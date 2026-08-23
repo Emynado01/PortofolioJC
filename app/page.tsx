@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 
 const INTRO_TIMING = {
   characterEnter: 4800,
@@ -8,7 +8,7 @@ const INTRO_TIMING = {
   centerReached: 9000,
   centerPauseEnd: 11000,
   cssComplete: 14000,
-  characterExit: 17100,
+  characterExit: 17000,
   identityInterval: 1400,
 } as const;
 
@@ -35,12 +35,13 @@ type Project = {
 
 const PROJECTS: Project[] = [
   {
-    id: "oryon",
+    id: "kimia",
     number: "01",
-    title: "Oryon",
-    category: "Migration, pensée légère",
-    description: "Un compagnon pour garder les grands départs un peu moins lourds.",
-    tags: ["Next.js", "Prisma"],
+    title: "Kimia",
+    category: "Cosmétiques et rituels de beauté",
+    description: "Une boutique pensée pour découvrir des soins, des produits et des rituels de beauté.",
+    tags: ["Next.js", "E-commerce"],
+    url: "https://kimia0.vercel.app/",
     modalMessage: "Site trop moche pour être vu.",
   },
   {
@@ -63,8 +64,18 @@ const PROJECTS: Project[] = [
     modalMessage: "Site trop moche pour être vu.",
   },
   {
-    id: "archives",
+    id: "blog-jc",
     number: "04",
+    title: "BlogJC",
+    category: "Articles juridiques et publication",
+    description: "Un blog où l’administration publie et organise des articles de droit.",
+    tags: ["Next.js", "Blog"],
+    url: "https://blog-jc.vercel.app/",
+    modalMessage: "Site trop moche pour être vu.",
+  },
+  {
+    id: "archives",
+    number: "05",
     title: "Voir plus de projets",
     category: "Archives plus ou moins terminées",
     description: "Quelques autres idées que mon cerveau a refusé de laisser tranquilles.",
@@ -132,6 +143,19 @@ export default function Home() {
   const [isHonestAbout, setIsHonestAbout] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  useLayoutEffect(() => {
+    const previousScrollRestoration = window.history.scrollRestoration;
+    window.history.scrollRestoration = "manual";
+    window.scrollTo(0, 0);
+
+    const frame = window.requestAnimationFrame(() => window.scrollTo(0, 0));
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.history.scrollRestoration = previousScrollRestoration;
+    };
+  }, []);
 
   const clearIntroTimers = useCallback(() => {
     timersRef.current.forEach(clearTimeout);
@@ -262,7 +286,7 @@ export default function Home() {
 
         <section className="projects" id="projets">
           <div className="sectionHeading">
-            <p className="sectionNumber">01 — 04</p>
+            <p className="sectionNumber">01 — 05</p>
             <h2>Quelques trucs que j’ai <em>fabriqués.</em></h2>
           </div>
           <div className="projectGrid">
