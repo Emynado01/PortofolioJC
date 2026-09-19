@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import Image from "next/image";
 
 const INTRO_TIMING = {
   characterEnter: 4800,
@@ -9,6 +10,7 @@ const INTRO_TIMING = {
   centerPauseEnd: 11000,
   cssComplete: 14000,
   characterExit: 17000,
+  characterFade: 16000,
   identityInterval: 1400,
 } as const;
 
@@ -30,6 +32,7 @@ type Project = {
   description: string;
   tags?: string[];
   url?: string;
+  githubUrl?: string;
   modalMessage: string;
 };
 
@@ -42,6 +45,7 @@ const PROJECTS: Project[] = [
     description: "Une boutique pensée pour découvrir des soins, des produits et des rituels de beauté.",
     tags: ["Next.js", "E-commerce"],
     url: "https://kimia0.vercel.app/",
+    githubUrl: "https://github.com/Emynado01/Kimia0",
     modalMessage: "Site trop moche pour être vu.",
   },
   {
@@ -70,15 +74,28 @@ const PROJECTS: Project[] = [
     category: "Articles juridiques et publication",
     description: "Un blog où l’administration publie et organise des articles de droit.",
     tags: ["Next.js", "Blog"],
-    url: "https://blog-jc.vercel.app/",
+    url: "https://blog-jc-tau.vercel.app/",
+    githubUrl: "https://github.com/Emynado01/BlogJC",
+    modalMessage: "Site trop moche pour être vu.",
+  },
+  {
+    id: "pensee-du-jour",
+    number: "05",
+    title: "Pensée du jour",
+    category: "Une pause dans le quotidien",
+    description: "Des pensées et des énigmes à découvrir, un jour à la fois.",
+    tags: ["Next.js", "Éditorial"],
+    url: "https://pensed-jour.vercel.app/",
+    githubUrl: "https://github.com/Emynado01/PensedJour",
     modalMessage: "Site trop moche pour être vu.",
   },
   {
     id: "archives",
-    number: "05",
+    number: "06",
     title: "Voir plus de projets",
     category: "Archives plus ou moins terminées",
     description: "Quelques autres idées que mon cerveau a refusé de laisser tranquilles.",
+    githubUrl: "https://github.com/Emynado01?tab=repositories",
     modalMessage: "Crois-moi, j’ai beaucoup de projets... Jamais finis.",
   },
 ];
@@ -90,35 +107,37 @@ type ProjectModalProps = {
 };
 
 function ProjectModal({ isOpen, message, onClose }: ProjectModalProps) {
+  const dialogRef = useRef<HTMLDialogElement>(null);
   useEffect(() => {
-    if (!isOpen) return;
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+    const dialog = dialogRef.current;
+    if (!isOpen || !dialog) return;
+    const trigger = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    dialog.showModal();
+    document.body.style.overflow = "hidden";
+    return () => {
+      dialog.close();
+      document.body.style.overflow = previousOverflow;
+      if (trigger instanceof HTMLElement) trigger.focus({ preventScroll: true });
     };
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
-
-  if (!isOpen) return null;
+  }, [isOpen]);
 
   return (
-    <div className="modalBackdrop" onMouseDown={onClose}>
+    <dialog ref={dialogRef} className="modalBackdrop" onCancel={onClose}
+      aria-labelledby="project-modal-title" aria-modal="true"
+      onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}>
       <section
         className="projectModal"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="project-modal-title"
-        onMouseDown={(event) => event.stopPropagation()}
       >
         <button className="modalClose" type="button" onClick={onClose} aria-label="Fermer la fenêtre">
           ×
         </button>
         <div className="joachimIcon joachimIcon--pose">
-          <img
+          <Image
             src="/IconePose.png"
             alt="Joachim"
+            width={88}
+            height={88}
             className="joachimIconImage"
           />
         </div>
@@ -130,26 +149,30 @@ function ProjectModal({ isOpen, message, onClose }: ProjectModalProps) {
           </button>
         </div>
       </section>
-    </div>
+    </dialog>
   );
 }
 
 export default function Home() {
-  const [isInstalling, setIsInstalling] = useState(false);
-  const [isStyled, setIsStyled] = useState(false);
+  const [phase, setPhase] = useState<"raw" | "enter" | "walk" | "repair" | "finish" | "ready">("raw");
+  const isStyled = phase === "ready";
+  const isInstalling = phase === "walk" || phase === "repair" || phase === "finish";
   const [showCharacter, setShowCharacter] = useState(false);
   const [identityIndex, setIdentityIndex] = useState(-1);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isHonestAbout, setIsHonestAbout] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const [isMotionPaused, setIsMotionPaused] = useState(false);
+  const portfolioRef = useRef<HTMLElement>(null);
+  const frameRef = useRef(0);
+  const stoppedRef = useRef(false);
 
   useLayoutEffect(() => {
     const previousScrollRestoration = window.history.scrollRestoration;
     window.history.scrollRestoration = "manual";
-    window.scrollTo(0, 0);
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
 
-    const frame = window.requestAnimationFrame(() => window.scrollTo(0, 0));
+    const frame = window.requestAnimationFrame(() => window.scrollTo({ top: 0, left: 0, behavior: "instant" }));
 
     return () => {
       window.cancelAnimationFrame(frame);
@@ -157,73 +180,87 @@ export default function Home() {
     };
   }, []);
 
-  const clearIntroTimers = useCallback(() => {
-    timersRef.current.forEach(clearTimeout);
-    timersRef.current = [];
+  const skipIntro = useCallback(() => {
+    stoppedRef.current = true;
+    cancelAnimationFrame(frameRef.current);
+    portfolioRef.current?.style.setProperty("--reveal", "100%");
+    setPhase("ready");
+    setShowCharacter(false);
+    setIdentityIndex(IDENTITIES.length - 1);
   }, []);
 
   useEffect(() => {
-    const schedule = (callback: () => void, delay: number) => {
-      const timer = setTimeout(callback, delay);
-      timersRef.current.push(timer);
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const onMotionChange = () => { if (reducedMotion.matches) skipIntro(); };
+    stoppedRef.current = false;
+    const start = performance.now();
+    const end = INTRO_TIMING.cssComplete + INTRO_TIMING.identityInterval * (IDENTITIES.length - 1);
+    const tick = (now: number) => {
+      if (stoppedRef.current) return;
+      const elapsed = now - start;
+      const t = INTRO_TIMING;
+      const nextPhase = elapsed < t.characterEnter ? "raw" : elapsed < t.cssStart ? "enter" : elapsed < t.centerReached ? "walk" : elapsed < t.centerPauseEnd ? "repair" : elapsed < t.cssComplete ? "finish" : "ready";
+      // One clock drives the CSS frontier and the character; repair holds both at 50%.
+      const progress = elapsed < t.cssStart ? 0 : elapsed < t.centerReached ? .5 * (elapsed - t.cssStart) / (t.centerReached - t.cssStart) : elapsed < t.centerPauseEnd ? .5 : Math.min(1, .5 + .5 * (elapsed - t.centerPauseEnd) / (t.cssComplete - t.centerPauseEnd));
+      const characterPosition = elapsed < t.cssStart
+        ? -10 + 10 * Math.max(0, (elapsed - t.characterEnter) / (t.cssStart - t.characterEnter))
+        : progress * 100;
+      const style = portfolioRef.current?.style;
+      style?.setProperty("--reveal", `${progress * 100}%`);
+      style?.setProperty("--character-x", `${characterPosition}%`);
+      style?.setProperty("--character-inset", `${Math.max(0, progress - .5) * 138}px`);
+      style?.setProperty("--character-opacity", `${Math.max(0, Math.min(1, (t.characterExit - elapsed) / (t.characterExit - t.characterFade)))}`);
+      setPhase(nextPhase);
+      setShowCharacter(elapsed >= t.characterEnter && elapsed < t.characterExit);
+      setIdentityIndex(elapsed < t.cssComplete ? -1 : Math.min(IDENTITIES.length - 1, Math.floor((elapsed - t.cssComplete) / t.identityInterval)));
+      if (elapsed < end) frameRef.current = requestAnimationFrame(tick);
     };
+    if (reducedMotion.matches) frameRef.current = requestAnimationFrame(skipIntro);
+    else frameRef.current = requestAnimationFrame(tick);
+    reducedMotion.addEventListener("change", onMotionChange);
+    return () => {
+      stoppedRef.current = true;
+      cancelAnimationFrame(frameRef.current);
+      reducedMotion.removeEventListener("change", onMotionChange);
+    };
+  }, [skipIntro]);
 
-    schedule(() => setShowCharacter(true), INTRO_TIMING.characterEnter);
-    schedule(() => setIsInstalling(true), INTRO_TIMING.cssStart);
-    schedule(() => {
-      setIsInstalling(false);
-      setIsStyled(true);
-      setIdentityIndex(0);
-    }, INTRO_TIMING.cssComplete);
-    schedule(() => setShowCharacter(false), INTRO_TIMING.characterExit);
-
-    IDENTITIES.slice(1).forEach((_, index) => {
-      schedule(
-        () => setIdentityIndex(index + 1),
-        INTRO_TIMING.cssComplete + INTRO_TIMING.identityInterval * (index + 1),
-      );
-    });
-
-    return clearIntroTimers;
-  }, [clearIntroTimers]);
-
-  const skipIntro = () => {
-    clearIntroTimers();
-    setIsInstalling(false);
-    setIsStyled(true);
-    setShowCharacter(false);
-    setIdentityIndex(IDENTITIES.length - 1);
-  };
+  useLayoutEffect(() => {
+    if (isStyled) return;
+    const overflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const resetScroll = () => window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+    resetScroll();
+    window.addEventListener("pageshow", resetScroll);
+    window.addEventListener("scroll", resetScroll, { passive: true });
+    return () => {
+      document.body.style.overflow = overflow;
+      window.removeEventListener("pageshow", resetScroll);
+      window.removeEventListener("scroll", resetScroll);
+    };
+  }, [isStyled]);
 
   const closeModal = useCallback(() => setSelectedProject(null), []);
 
-  const openProject = (project: Project) => {
-    if (project.url) {
-      window.open(project.url, "_blank", "noopener,noreferrer");
-      return;
-    }
-
-    setSelectedProject(project);
-  };
-
   return (
-    <main className={`portfolio ${isInstalling ? "portfolio--installing" : ""} ${isStyled ? "portfolio--ready" : ""}`}>
+    <main ref={portfolioRef} data-phase={phase} className={`portfolio ${isInstalling ? "portfolio--installing" : ""} ${isStyled ? "portfolio--ready" : ""} ${isMotionPaused ? "portfolio--still" : ""}`}>
       {!isStyled && (
         <button className="skipIntro" type="button" onClick={skipIntro}>
           Passer l’introduction
         </button>
       )}
 
-      {showCharacter && (
-        <div className="characterRunner" aria-label="Joachim installe le design">
-          <img className="characterImage characterImage--walk" src="/IconeMarche.png" alt="Joachim marche avec ses outils" />
-          <img className="characterImage characterImage--repair" src="/IconeRepare.png" alt="Joachim répare le site" />
+        <div hidden={!showCharacter} className={`characterRunner ${phase === "repair" ? "characterRunner--repair" : ""}`} aria-hidden="true">
+          <Image className="characterImage characterImage--walk" src="/IconeMarche.png" alt="" width={138} height={138} priority />
+          <Image className="characterImage characterImage--repair" src="/IconeRepare.png" alt="" width={138} height={138} priority />
+          <span className="characterSpeech">{phase === "enter" ? "Qui a volé le CSS ?!" : phase === "repair" ? "Attends… je répare." : phase === "ready" ? "Voilà. Ni vu ni connu." : "Un peu de style…"}</span>
         </div>
-      )}
+
+      {!isStyled && <div className="introProgress" role="status"><span>{phase === "raw" ? "Le CSS est introuvable." : phase === "repair" ? "02 / Petite réparation au centre" : "01 / Installation du style"}</span><div><span /></div></div>}
 
       <section className="rawPage" aria-label="Page en cours de mise en forme">
         <p>&lt;!DOCTYPE html&gt;</p>
-        <p>&lt;html lang="fr"&gt;</p>
+        <p>&lt;html lang=&quot;fr&quot;&gt;</p>
         <p>&nbsp; &lt;head&gt;</p>
         <p>&nbsp; &nbsp; &lt;title&gt;Joachim Cishugi&lt;/title&gt;</p>
         <p>&nbsp; &lt;/head&gt;</p>
@@ -236,7 +273,7 @@ export default function Home() {
         <p>&lt;/html&gt;</p>
       </section>
 
-      <div className="designedPage">
+      <div className="designedPage" inert={!isStyled} aria-hidden={!isStyled}>
         <div className="digitalRain" aria-hidden="true">
           {RAIN_GLYPHS.map((glyph, index) => (
             <span
@@ -256,6 +293,7 @@ export default function Home() {
           <a href="#projets">Projets</a>
           <a href="#apropos">À propos</a>
           <a href="#contact">Contact</a>
+          <a className="navGithub" href="https://github.com/Emynado01" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
         </nav>
 
         <section className="hero" id="accueil">
@@ -263,7 +301,7 @@ export default function Home() {
           <div className="identityWrap" aria-live="polite">
             <p className="identityLabel">Je suis</p>
             <h1 key={identityIndex} className="identityName">
-              {identityIndex >= 0 ? IDENTITIES[identityIndex] : ""}
+              {identityIndex >= 0 ? IDENTITIES[identityIndex] : "Joachim Cishugi"}
             </h1>
             {identityIndex === IDENTITIES.length - 1 && (
               <p className="identityJoke">Je déconne, je suis Joachim Cishugi.</p>
@@ -286,37 +324,39 @@ export default function Home() {
 
         <section className="projects" id="projets">
           <div className="sectionHeading">
-            <p className="sectionNumber">01 — 05</p>
+            <p className="sectionNumber">01 / PROJETS CHOISIS</p>
             <h2>Quelques trucs que j’ai <em>fabriqués.</em></h2>
           </div>
+          <p className="projectsIntro">Des idées devenues des interfaces. À explorer en ligne ou dans le code.<span>Les liens externes s’ouvrent dans un nouvel onglet.</span></p>
           <div className="projectGrid">
             {PROJECTS.map((project) => (
-              <button
+              <article
                 className={`projectCard ${project.id === "archives" ? "projectCard--archives" : ""}`}
                 key={project.id}
-                type="button"
-                onClick={() => openProject(project)}
-                aria-label={project.url ? `Ouvrir le site ${project.title}` : `Voir le message pour ${project.title}`}
               >
                 <span className="projectNumber">{project.number}</span>
-                <span className="projectArrow">↗</span>
-                <strong>{project.title}</strong>
+                <span className="projectState">{project.url ? "En ligne" : project.id === "archives" ? "Explorations" : "En atelier"}</span>
+                <h3>{project.title}</h3>
                 <span className="projectCategory">{project.category}</span>
                 <span className="projectDescription">{project.description}</span>
                 {project.tags && <span className="projectTags">{project.tags.join(" · ")}</span>}
-              </button>
+                <div className="projectLinks">
+                  {project.url ? <a href={project.url} target="_blank" rel="noopener noreferrer" aria-label={`Voir le site ${project.title} (nouvel onglet)`}>Voir le site <span aria-hidden="true">↗</span></a> : <button type="button" onClick={() => setSelectedProject(project)}>{project.id === "archives" ? "L’explication" : "Dans les coulisses"} <span aria-hidden="true">→</span></button>}
+                  {project.githubUrl ? <a className="projectSource" href={project.githubUrl} target="_blank" rel="noopener noreferrer" aria-label={`Code GitHub — ${project.title} (nouvel onglet)`}>{project.id === "archives" ? "Tous les dépôts" : "Code GitHub"} <span aria-hidden="true">↗</span></a> : <span className="privateSource">Code privé</span>}
+                </div>
+              </article>
             ))}
           </div>
         </section>
 
         <section className="about" id="apropos">
           <div className="aboutTitle">
-            <p className="sectionNumber">01.</p>
+            <p className="sectionNumber">02.</p>
             <h2>À propos</h2>
           </div>
           <div className="aboutCopy">
             <p className="aboutLabel">IDENTITÉ</p>
-            <div className="aboutText" aria-live="polite">
+            <div key={String(isHonestAbout)} className="aboutText" aria-live="polite">
               {isHonestAbout ? (
                 <>
                   <p className="aboutLead">Je suis Joachim Cishugi. Je ne maîtrise pas tout et je ne vais pas prétendre le contraire.</p>
@@ -346,7 +386,7 @@ export default function Home() {
           <a href="mailto:cishugijoachim@gmail.com">cishugijoachim@gmail.com</a>
         </section>
 
-        <footer><span>© 2026 Joachim Cishugi</span><span>Le CSS a finalement été retrouvé.</span></footer>
+        <footer><span>© 2026 Joachim Cishugi</span><a href="https://github.com/Emynado01/PortofolioJC" target="_blank" rel="noopener noreferrer">Le code de ce site ↗</a><button type="button" onClick={() => setIsMotionPaused((value) => !value)} aria-pressed={isMotionPaused}>{isMotionPaused ? "Reprendre le fond animé" : "Mettre le fond en pause"}</button></footer>
       </div>
 
       <ProjectModal
